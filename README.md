@@ -2,11 +2,11 @@
 
 ## Overview
 
-Transaction Monitor is a comprehensive tool designed to track blockchain transactions across multiple chains. It monitors specific wallet addresses, captures transaction details, and sends alerts to various communication platforms, including Discord, Slack, and Telegram.
+Transaction Monitor is a comprehensive tool designed to track blockchain transactions across Tendermint chains. It monitors specific wallet addresses, captures transaction details, and sends alerts to various communication platforms, including Discord, Slack, and Telegram.
 
 ## Features
 
--   Multi-Chain Support: Tracks transactions on multiple blockchains including Odin-protocol, E-money, Kava, Konstellation, and Osmosis.
+-   Tendermint chains Support: Tracks transactions on multiple blockchains including Odin-protocol, E-money, Kava, Konstellation, and Osmosis.
 -   Custom Alerts: Sends transaction notifications to Discord, Slack, and Telegram based on user configuration.
 -   Flexible Configuration: Users can specify which wallets to monitor and configure settings for each supported communication platform.
 -   Real-Time Monitoring: Utilizes WebSocket connections for real-time transaction tracking.
@@ -53,6 +53,8 @@ chains:
 Run the application with a specified configuration file path:
 
 ```bash
+git clone https://github.com/mkvone/transaction-monitor
+cd transaction-monitor
 go run ./main.go --config-path "./config.yml"
 # or
 go run main.go # default "./config.yml"
