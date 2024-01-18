@@ -11,38 +11,34 @@ alerting:
         webhook_url: https://discord.com/api/webhooks/999999999999999999/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
 
 chains:
-    'Odin-protocol':
-        rpc: https://rpc-odin.mkv.one
-        api: https://api-odin.mkv.one
-        explorerURL: https://ping.pub/odin/tx/
-        wallet_Info:
-            - wallet_address: odin1fupf80rhes3vu25vgjsk6sp8t68urpld59fgws
-
-    'E-money':
-        rpc: https://rpc-emoney.mkv.one
-        api: https://api-emoney.mkv.one
-        explorerURL: https://www.mintscan.io/emoney/tx/
-        wallet_Info:
-            - wallet_address: emoney1jm27nlfre05lnelxkn2j45xf73tqpnnn7cfm6w
-            - wallet_address: emoney1ntcvrsk5sds4utcx7z7vjac08ykthjk95qfuf0
     'Kava':
         rpc: https://rpc-kava.mkv.one
         api: https://api-kava.mkv.one
         explorerURL: https://www.mintscan.io/kava/tx/
         wallet_Info:
             - wallet_address: kava18zxhj6f8lm988mfzzvmrmlp47yys0fmcjfpcql
-            - wallet_address: kava1fzj98luhm9hdaed6cvw5zkj570ht457lrtenee
-
-    'Konstellation':
-        rpc: https://rpc-konstellation.mkv.one
-        api: https://api-konstellation.mkv.one
-        explorerURL: https://atomscan.com/konstellation/blocks/
-        wallet_Info:
-            - wallet_address: darc1d3rqsrs23w3wwhl393m5an6nwsdt9r8auayqf8
+            - wallet_address: kava1z9gcnn72fcd93nxkat3pgncwmdqvcdpfd99p9r
     'Osmosis':
         rpc: https://rpc-osmosis.mkv.one
         api: https://api-osmosis.mkv.one
         explorerURL: https://www.mintscan.io/osmosis/tx/
         wallet_Info:
             - wallet_address: osmo13a4ayjk9sea92qfkvss0u48th9wjarft32fvpc
-            - wallet_address: osmo1ntcvrsk5sds4utcx7z7vjac08ykthjk9ncqcgq
+    'Odin-protocol':
+        rpc: https://rpc-odin.mkv.one
+        api: https://api-odin.mkv.one
+        explorerURL: https://ping.pub/odin/tx/
+        wallet_Info:
+            - wallet_address: odin1fupf80rhes3vu25vgjsk6sp8t68urpld59fgws
+    'E-money':
+        rpc: https://rpc-emoney.mkv.one
+        api: https://api-emoney.mkv.one
+        explorerURL: https://www.mintscan.io/emoney/tx/
+        wallet_Info:
+            - wallet_address: emoney1jm27nlfre05lnelxkn2j45xf73tqpnnn7cfm6w
+    'Konstellation':
+        rpc: https://rpc-konstellation.mkv.one
+        api: https://api-konstellation.mkv.one
+        explorerURL: https://atomscan.com/konstellation/blocks/
+        wallet_Info:
+            - wallet_address: darc1d3rqsrs23w3wwhl393m5an6nwsdt9r8auayqf8
