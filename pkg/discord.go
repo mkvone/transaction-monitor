@@ -54,7 +54,7 @@ func SendDiscordWebhook(webhookURL string, alertData AlertData) error {
 
 	embed := Embed{
 		Title:       fmt.Sprintf("%s New Transaction (<t:%d>)", alertData.ChainName, convertToUnixTimestamp(alertData.Timestamp)),
-		Description: fmt.Sprintf("[Txs Hash](%s) : *`%s`*\nHeight : `%s`\nFees : `%s` ", url, alertData.TxHash, alertData.Height, alertData.Fees),
+		Description: fmt.Sprintf("[Txs Hash](%s) : *`%s`*\nHeight : `%s`\nFees : `%s`\n Memo : `%s`", url, alertData.TxHash, alertData.Height, alertData.Fees, alertData.Memo),
 
 		Fields: fields,
 		Color:  15258703, // Sample color code

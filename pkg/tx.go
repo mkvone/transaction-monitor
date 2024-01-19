@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -77,22 +78,40 @@ type Body struct {
 }
 
 type Message struct {
-	Type             string      `json:"@type"`
-	DelegatorAddress *string     `json:"delegator_address,omitempty"`
-	ValidatorAddress string      `json:"validator_address"`
-	FromAddress      *string     `json:"from_address,omitempty"`
-	ToAddress        *string     `json:"to_address,omitempty"`
-	Amount           interface{} `json:"amount,omitempty"`
-	ProposalId       *string     `json:"proposal_id,omitempty"`
-	Voter            *string     `json:"voter,omitempty"`
-	Option           *string     `json:"option,omitempty"`
-	SourcePort       *string     `json:"source_port,omitempty"`
-	SourceChannel    *string     `json:"source_channel,omitempty"`
-	Token            *Token      `json:"token,omitempty"`
-	Sender           *string     `json:"sender,omitempty"`
-	Receiver         *string     `json:"receiver,omitempty"`
-	TimeoutHeight    *Height     `json:"timeout_height,omitempty"`
-	TimeoutTimestamp *string     `json:"timeout_timestamp,omitempty"`
+	Type               string      `json:"@type"`
+	DelegatorAddress   *string     `json:"delegator_address,omitempty"`
+	ValidatorAddress   string      `json:"validator_address"`
+	FromAddress        *string     `json:"from_address,omitempty"`
+	ToAddress          *string     `json:"to_address,omitempty"`
+	Amount             interface{} `json:"amount,omitempty"`
+	ProposalId         *string     `json:"proposal_id,omitempty"`
+	Voter              *string     `json:"voter,omitempty"`
+	Option             *string     `json:"option,omitempty"`
+	SourcePort         *string     `json:"source_port,omitempty"`
+	SourceChannel      *string     `json:"source_channel,omitempty"`
+	Token              *Token      `json:"token,omitempty"`
+	Sender             *string     `json:"sender,omitempty"`
+	Receiver           *string     `json:"receiver,omitempty"`
+	TimeoutHeight      *Height     `json:"timeout_height,omitempty"`
+	TimeoutTimestamp   *string     `json:"timeout_timestamp,omitempty"`
+	ClientID           *string     `json:"client_id,omitempty"`
+	Signer             *string     `json:"signer,omitempty"`
+	PacketSequence     *string     `json:"sequence,omitempty"`
+	DestinationPort    *string     `json:"destination_port,omitempty"`
+	DestinationChannel *string     `json:"destination_channel,omitempty"`
+	Data               *string     `json:"data,omitempty"`
+	Packet             *PacketData `json:"packet,omitempty"`
+}
+type PacketData struct {
+	PacketSequence     *string `json:"sequence,omitempty"`
+	SourcePort         *string `json:"source_port,omitempty"`
+	SourceChannel      *string `json:"source_channel,omitempty"`
+	DestinationPort    *string `json:"destination_port,omitempty"`
+	DestinationChannel *string `json:"destination_channel,omitempty"`
+	Data               *string `json:"data,omitempty"`
+	TimeoutHeight      *Height `json:"timeout_height,omitempty"`
+	TimeoutTimestamp   *string `json:"timeout_timestamp,omitempty"`
+	Signer             *string `json:"signer,omitempty"`
 }
 type Token struct {
 	Denom  string `json:"denom"`
@@ -131,7 +150,6 @@ type Log struct {
 }
 
 func (m *Message) UnmarshalJSON(data []byte) error {
-	// Create a struct that mirrors Message but with Amount as a raw message.
 	type Alias Message
 	aux := &struct {
 		Amount json.RawMessage `json:"amount,omitempty"`
@@ -144,7 +162,6 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	// Based on the message type, unmarshal the Amount field appropriately.
 	switch m.Type {
 	case "/cosmos.bank.v1beta1.MsgSend":
 		var amounts []Amount
@@ -159,6 +176,14 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		m.Amount = amount
+	case "/ibc.applications.transfer.v1.MsgTransfer":
+		// IBC 전송 메시지에 대한 처리
+		var token Token
+		if err := json.Unmarshal(aux.Amount, &token); err != nil {
+			return err
+		}
+		m.Amount = token
+
 	}
 
 	return nil
@@ -184,7 +209,6 @@ func fetchAPIData(url string) (*Response, error) {
 }
 
 type AlertData struct {
-	// Common fields that are relevant to all platforms
 	TxHash         string
 	Height         string
 	Timestamp      string
@@ -192,8 +216,7 @@ type AlertData struct {
 	ExplorerURL    string
 	MessageDetails []MessageDetail
 	Fees           string
-
-	// Add other fields as necessary
+	Memo           string
 }
 type MessageDetail struct {
 	Index   int
@@ -211,6 +234,7 @@ func transformData(apiData *Response, alerts *AlertData) {
 	alerts.Timestamp = apiData.TxResponse.Timestamp
 	alerts.Height = apiData.TxResponse.Height
 	alerts.TxHash = apiData.TxResponse.Txhash
+	alerts.Memo = apiData.Tx.Body.Memo
 	alerts.Fees = fmt.Sprintf("%f %s ", extractNumber(apiData.Tx.AuthInfo.Fee.Amount[0].Amount)/1000000, extractDenom(apiData.Tx.AuthInfo.Fee.Amount[0].Denom))
 
 	for i, message := range apiData.Tx.Body.Messages {
@@ -279,10 +303,88 @@ func transformData(apiData *Response, alerts *AlertData) {
 					messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", extractedAmount, denom)})
 				}
 			}
+		case "/ibc.core.client.v1.MsgUpdateClient":
+			if message.Signer != nil && message.ClientID != nil {
+				messageDetail.Action = "IBC Update Client"
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Signer": *message.Signer})
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Client ID": *message.ClientID})
+			}
+		case "/ibc.core.channel.v1.MsgRecvPacket":
+			if packet := message.Packet; packet != nil {
+				var packetData map[string]interface{}
+				decodedData, err := base64.StdEncoding.DecodeString(*packet.Data)
+				if err != nil {
+					log.Printf("Error decoding packet data: %v", err)
+					continue
+				}
+				if err := json.Unmarshal(decodedData, &packetData); err != nil {
+					log.Printf("Error unmarshalling packet data: %v", err)
+					continue
+				}
+
+				// Add relevant details to the message detail
+				messageDetail.Action = "IBC Received"
+
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Sequence": *packet.PacketSequence})
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Source Port": *packet.SourcePort})
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Source Channel": *packet.SourceChannel})
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Destination Port": *packet.DestinationPort})
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Destination Channel": *packet.DestinationChannel})
+
+				// Adding packetData fields
+				for key, value := range packetData {
+					// detailMap[key] = fmt.Sprintf("%v", value)
+					if key == "memo" {
+						continue
+					}
+					messageDetail.Details = append(messageDetail.Details, map[string]string{fmt.Sprintf("%s", key): fmt.Sprintf("%v", value)})
+				}
+			}
+
+		case "/ibc.core.channel.v1.MsgAcknowledgement":
+			messageDetail.Action = "IBC Acknowledgement"
+
+			if packet := message.Packet; packet != nil {
+				// Packet data의 Base64 인코딩 해독
+				decodedData, err := base64.StdEncoding.DecodeString(*packet.Data)
+				if err != nil {
+					log.Printf("Error decoding packet data: %v", err)
+					continue
+				}
+
+				var packetData map[string]interface{}
+				if err := json.Unmarshal(decodedData, &packetData); err != nil {
+					log.Printf("Error unmarshalling packet data: %v", err)
+					continue
+				}
+
+				for key, value := range packetData {
+					var stringValue string
+					if key == "amount" {
+						stringValue = fmt.Sprintf("%v", value)
+					} else {
+						stringValue = fmt.Sprintf("%v", value)
+					}
+					messageDetail.Details = append(messageDetail.Details, map[string]string{key: stringValue})
+				}
+
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Sequence": *packet.PacketSequence})
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Receiver": *message.Receiver})
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Sender": *message.Sender})
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Source Port": *packet.SourcePort})
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Source Channel": *packet.SourceChannel})
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Destination Port": *packet.DestinationPort})
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Destination Channel": *packet.DestinationChannel})
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Signer": *message.Signer})
+
+			}
+
+		default:
+			messageDetail.Action = message.Type
+			messageDetail.Details = append(messageDetail.Details, map[string]string{"Unhandled Message": fmt.Sprint(message)})
 
 		}
 		if len(messageDetail.Details) > 0 {
-			// Append only if messageDetail contains relevant information
 			alerts.MessageDetails = append(alerts.MessageDetails, messageDetail)
 		}
 

@@ -19,7 +19,7 @@ func SendTelegramMessage(botToken string, chatID string, alertData AlertData) er
 	var messageText string
 	messageText += fmt.Sprintf("*%s New Transaction*\n[View on Explorer](%s%s)\n", alertData.ChainName, alertData.ExplorerURL, alertData.TxHash)
 	messageText += fmt.Sprintf("Transaction: `%s`\n", alertData.TxHash)
-	messageText += fmt.Sprintf("Height: `%s`\nFees: `%s`\n", alertData.Height, alertData.Fees)
+	messageText += fmt.Sprintf("Height: `%s`\nFees: `%s`\nMemo: `%s`", alertData.Height, alertData.Fees, alertData.Memo)
 	for _, detail := range alertData.MessageDetails {
 		messageText += fmt.Sprintf("\n*#%d %s*\n", detail.Index, detail.Action)
 		for _, d := range detail.Details {

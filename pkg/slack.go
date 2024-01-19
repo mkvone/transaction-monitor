@@ -43,7 +43,7 @@ func SendSlackWebhook(webhookURL string, alertData AlertData) error {
 		Text: &BlockText{Type: "mrkdwn", Text: transactionText},
 	})
 
-	heightText := fmt.Sprintf("Height: `%s`\nFees: `%s`", alertData.Height, alertData.Fees)
+	heightText := fmt.Sprintf("Height: `%s`\nFees: `%s`\nMemo : `%s`", alertData.Height, alertData.Fees, alertData.Memo)
 	blocks = append(blocks, Block{
 		Type: "section",
 		Text: &BlockText{Type: "mrkdwn", Text: heightText},

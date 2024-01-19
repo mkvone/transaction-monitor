@@ -37,11 +37,6 @@ type ChainConfig struct {
 }
 
 func LoadConfig(path string) (*Config, error) {
-	// 환경 변수에서 경로를 가져오거나, 없을 경우 기본 경로 사용
-	// fullPath := os.Getenv("CONFIG_PATH")
-	// if fullPath == "" {
-	// 	fullPath = "/.mkvBackend/config.yml" // 기본 경로
-	// }
 
 	data, err := os.ReadFile(path)
 	if err != nil {
