@@ -15,5 +15,6 @@ FROM alpine:latest
 WORKDIR /root/
 
 COPY --from=builder /app/main .
+RUN ls
 
 CMD ["./main"]
