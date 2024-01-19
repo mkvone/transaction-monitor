@@ -1,0 +1,30 @@
+name: Go Docker Host Runner
+
+on:
+    push:
+        branches: ['main']
+    pull_request:
+        branches: ['main']
+
+jobs:
+    build:
+        runs-on: [self-hosted, linux, x64]
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v3
+
+            - name: Build Docker image
+              run: sudo docker build -t tx_monitor_docker_image .
+              working-directory: .
+
+            - name: Stop previous Docker container
+              run: sudo docker stop tx_monitor_docker_container || true
+              continue-on-error: true
+
+            - name: Remove previous Docker container
+              run: sudo docker rm tx_monitor_docker_container || true
+              continue-on-error: true
+
+            - name: Run Docker container
+              run: sudo docker run -d -v /home/ubuntu/.mkvBackend/tx_config.yml:/app/config.yml --name tx_monitor_docker_container tx_monitor_docker_image
