@@ -241,8 +241,15 @@ func transformData(apiData *Response, alerts *AlertData) {
 	alerts.Height = apiData.TxResponse.Height
 	alerts.TxHash = apiData.TxResponse.Txhash
 	alerts.Memo = apiData.Tx.Body.Memo
-	alerts.Fees = fmt.Sprintf("%f %s ", extractNumber(apiData.Tx.AuthInfo.Fee.Amount[0].Amount)/1000000, extractDenom(apiData.Tx.AuthInfo.Fee.Amount[0].Denom))
-
+	// alerts.Fees = fmt.Sprintf("%f %s ", extractNumber(apiData.Tx.AuthInfo.Fee.Amount[0].Amount)/1000000, extractDenom(apiData.Tx.AuthInfo.Fee.Amount[0].Denom))
+	if len(apiData.Tx.AuthInfo.Fee.Amount) > 0 {
+		amount := extractNumber(apiData.Tx.AuthInfo.Fee.Amount[0].Amount) / 1000000
+		denom := extractDenom(apiData.Tx.AuthInfo.Fee.Amount[0].Denom)
+		alerts.Fees = fmt.Sprintf("%f %s", amount, denom)
+	} else {
+		// Handle the case where there's no amount
+		alerts.Fees = "0"
+	}
 	for i, message := range apiData.Tx.Body.Messages {
 		var messageDetail MessageDetail
 		messageDetail.Index = i + 1
