@@ -72,15 +72,21 @@ func SubscribeToNewBlocks(cfg *Config, chain ChainConfig, chainName string, addr
 		log.Println("supscribe to : ", address)
 		socket.SendText(fmt.Sprintf("{ \"jsonrpc\": \"2.0\", \"method\": \"subscribe\", \"params\": [\"transfer.sender ='%s'\"], \"id\": 1 }", address))
 
+		// socket.SendText("{ \"jsonrpc\": \"2.0\", \"method\": \"subscribe\", \"params\": [\"tm.event = 'Tx'\"], \"id\": 1 }")
+
 	}
 	socket.OnConnected = func(socket gowebsocket.Socket) {
 		log.Println("supscribe to : ", address)
 		socket.SendText(fmt.Sprintf("{ \"jsonrpc\": \"2.0\", \"method\": \"subscribe\", \"params\": [\"transfer.sender ='%s'\"], \"id\": 1 }", address))
 
+		// socket.SendText("{ \"jsonrpc\": \"2.0\", \"method\": \"subscribe\", \"params\": [\"tm.event = 'Tx'\"], \"id\": 1 }")
+
 	}
 
 	socket.OnTextMessage = func(message string, socket gowebsocket.Socket) {
 		txhash, err := extractDataFromMessage(message)
+		// log.Println(message)
+
 		if err != nil {
 			log.Printf("Error parsing message from WebSocket: %v", err)
 			return

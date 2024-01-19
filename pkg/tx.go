@@ -99,8 +99,9 @@ type Message struct {
 	PacketSequence     *string     `json:"sequence,omitempty"`
 	DestinationPort    *string     `json:"destination_port,omitempty"`
 	DestinationChannel *string     `json:"destination_channel,omitempty"`
-	Data               *string     `json:"data,omitempty"`
-	Packet             *PacketData `json:"packet,omitempty"`
+	// Data               *string     `json:"data,omitempty"`
+	Data   *json.RawMessage `json:"data,omitempty"`
+	Packet *PacketData      `json:"packet,omitempty"`
 }
 type PacketData struct {
 	PacketSequence     *string `json:"sequence,omitempty"`
@@ -134,7 +135,6 @@ type TxResponse struct {
 	Codespace string `json:"codespace"`
 	Code      int64  `json:"code"`
 	Data      string `json:"data"`
-	RawLog    string `json:"raw_log"`
 	Logs      []Log  `json:"logs"`
 	Info      string `json:"info"`
 	GasWanted string `json:"gas_wanted"`
@@ -192,6 +192,7 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 func buildAPIURL(baseURL, tx string) string {
 	return fmt.Sprintf("%s/cosmos/tx/v1beta1/txs/%s", baseURL, tx)
 }
+
 func fetchAPIData(url string) (*Response, error) {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -224,6 +225,11 @@ type MessageDetail struct {
 	Details []map[string]string
 }
 
+func appendIfNotNil(details *[]map[string]string, key string, value *string) {
+	if value != nil {
+		*details = append(*details, map[string]string{key: *value})
+	}
+}
 func transformData(apiData *Response, alerts *AlertData) {
 
 	if apiData == nil {
@@ -247,14 +253,15 @@ func transformData(apiData *Response, alerts *AlertData) {
 			if message.DelegatorAddress != nil {
 				amount, denom := extractAmount(apiData.TxResponse.Logs, i)
 				messageDetail.Action = "Get Reward"
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Delegator Address": *message.DelegatorAddress})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Validator Address": message.ValidatorAddress})
+				appendIfNotNil(&messageDetail.Details, "Delegator Address", message.DelegatorAddress)
+				appendIfNotNil(&messageDetail.Details, "Validator Address", &message.ValidatorAddress)
 				messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", amount, denom)})
 			}
+
 		case "/cosmos.distribution.v1beta1.MsgWithdrawValidatorCommission":
 			amount, denom := extractAmount(apiData.TxResponse.Logs, i)
 			messageDetail.Action = "Get Commission"
-			messageDetail.Details = append(messageDetail.Details, map[string]string{"Validator Address": message.ValidatorAddress})
+			appendIfNotNil(&messageDetail.Details, "Validator Address", &message.ValidatorAddress)
 			messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", amount, denom)})
 
 		case "/cosmos.staking.v1beta1.MsgDelegate":
@@ -263,8 +270,8 @@ func transformData(apiData *Response, alerts *AlertData) {
 				case Amount:
 					extractedAmount, denom := extractNumber(amount.Amount)/1000000, extractDenom(amount.Denom)
 					messageDetail.Action = "Delegate"
-					messageDetail.Details = append(messageDetail.Details, map[string]string{"Delegator Address": *delegatorAddr})
-					messageDetail.Details = append(messageDetail.Details, map[string]string{"Validator Address": message.ValidatorAddress})
+					appendIfNotNil(&messageDetail.Details, "Delegator Address", delegatorAddr)
+					appendIfNotNil(&messageDetail.Details, "Validator Address", &message.ValidatorAddress)
 					messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", extractedAmount, denom)})
 				}
 			}
@@ -287,9 +294,9 @@ func transformData(apiData *Response, alerts *AlertData) {
 		case "/cosmos.gov.v1beta1.MsgVote":
 			if message.ProposalId != nil && message.Voter != nil && message.Option != nil {
 				messageDetail.Action = "Vote"
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Proposal Id": *message.ProposalId})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Voter": *message.Voter})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Option": *message.Option})
+				appendIfNotNil(&messageDetail.Details, "Proposal Id", message.ProposalId)
+				appendIfNotNil(&messageDetail.Details, "Voter", message.Voter)
+				appendIfNotNil(&messageDetail.Details, "Option", message.Option)
 			}
 
 		case "/cosmos.bank.v1beta1.MsgSend":
@@ -298,16 +305,17 @@ func transformData(apiData *Response, alerts *AlertData) {
 				if ok && len(amountSlice) > 0 {
 					extractedAmount, denom := extractNumber(amountSlice[0].Amount)/1000000, extractDenom(amountSlice[0].Denom)
 					messageDetail.Action = "Send"
-					messageDetail.Details = append(messageDetail.Details, map[string]string{"From": *fromAddr})
-					messageDetail.Details = append(messageDetail.Details, map[string]string{"To": *toAddr})
+					appendIfNotNil(&messageDetail.Details, "From", fromAddr)
+					appendIfNotNil(&messageDetail.Details, "To", toAddr)
 					messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", extractedAmount, denom)})
 				}
 			}
+
 		case "/ibc.core.client.v1.MsgUpdateClient":
 			if message.Signer != nil && message.ClientID != nil {
 				messageDetail.Action = "IBC Update Client"
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Signer": *message.Signer})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Client ID": *message.ClientID})
+				appendIfNotNil(&messageDetail.Details, "Signer", message.Signer)
+				appendIfNotNil(&messageDetail.Details, "Client ID", message.ClientID)
 			}
 		case "/ibc.core.channel.v1.MsgRecvPacket":
 			if packet := message.Packet; packet != nil {
@@ -325,11 +333,11 @@ func transformData(apiData *Response, alerts *AlertData) {
 				// Add relevant details to the message detail
 				messageDetail.Action = "IBC Received"
 
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Sequence": *packet.PacketSequence})
+				appendIfNotNil(&messageDetail.Details, "Sequence", packet.PacketSequence)
 				messageDetail.Details = append(messageDetail.Details, map[string]string{"Source Port": *packet.SourcePort})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Source Channel": *packet.SourceChannel})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Destination Port": *packet.DestinationPort})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Destination Channel": *packet.DestinationChannel})
+				appendIfNotNil(&messageDetail.Details, "Source Port", packet.SourcePort)
+				appendIfNotNil(&messageDetail.Details, "Destination Port", packet.DestinationPort)
+				appendIfNotNil(&messageDetail.Details, "Destination Channel", packet.DestinationChannel)
 
 				// Adding packetData fields
 				for key, value := range packetData {
@@ -368,20 +376,20 @@ func transformData(apiData *Response, alerts *AlertData) {
 					messageDetail.Details = append(messageDetail.Details, map[string]string{key: stringValue})
 				}
 
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Sequence": *packet.PacketSequence})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Receiver": *message.Receiver})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Sender": *message.Sender})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Source Port": *packet.SourcePort})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Source Channel": *packet.SourceChannel})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Destination Port": *packet.DestinationPort})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Destination Channel": *packet.DestinationChannel})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Signer": *message.Signer})
+				appendIfNotNil(&messageDetail.Details, "Sequence", packet.PacketSequence)
+				appendIfNotNil(&messageDetail.Details, "Receiver", message.Receiver)
+				appendIfNotNil(&messageDetail.Details, "Sender", message.Sender)
+				appendIfNotNil(&messageDetail.Details, "Source Port", packet.SourcePort)
+				appendIfNotNil(&messageDetail.Details, "Source Channel", packet.SourceChannel)
+				appendIfNotNil(&messageDetail.Details, "Destination Port", packet.DestinationPort)
+				appendIfNotNil(&messageDetail.Details, "Destination Channel", packet.DestinationChannel)
+				appendIfNotNil(&messageDetail.Details, "Signer", message.Signer)
 
 			}
 
 		default:
 			messageDetail.Action = message.Type
-			messageDetail.Details = append(messageDetail.Details, map[string]string{"Unhandled Message": fmt.Sprint(message)})
+			messageDetail.Details = append(messageDetail.Details, map[string]string{"Unhandled Message": "\n"})
 
 		}
 		if len(messageDetail.Details) > 0 {
@@ -395,7 +403,7 @@ func transformData(apiData *Response, alerts *AlertData) {
 func extractNumber(str string) float64 {
 	reg, err := regexp.Compile("^[0-9]+")
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 	// Find the first match which is a continuous sequence of digits at the beginning
 	match := reg.FindString(str)
@@ -417,7 +425,7 @@ func extractNumber(str string) float64 {
 func extractDenom(str string) string {
 	reg, err := regexp.Compile("[^a-zA-Z]+")
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 	denom := reg.ReplaceAllString(str, "")
 
