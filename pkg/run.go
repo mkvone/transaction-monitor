@@ -1,7 +1,6 @@
 package pkg
 
 import (
-	"fmt"
 	"log"
 	"time"
 )
@@ -26,10 +25,11 @@ func ProcessAlerts(cfg *Config, alertChan <-chan Alert) {
 
 func AlertRun(cfg *Config, chainName string, txhash string) {
 	url := buildAPIURL(cfg.Chains[chainName].API, txhash)
-	fmt.Println(url)
+
 	apiData, err := fetchAPIData(url)
 	if err != nil {
 		log.Printf("Error fetching API data: %v", err)
+		log.Print(url)
 		return
 	}
 	var alerts AlertData
