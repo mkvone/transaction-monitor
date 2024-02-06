@@ -37,6 +37,13 @@ func SendSlackWebhook(webhookURL string, alertData AlertData) error {
 		Type: "section",
 		Text: &BlockText{Type: "mrkdwn", Text: titleText},
 	})
+	if alertData.Error != "" {
+		ErrorText := fmt.Sprintf("Error: `%s`", alertData.Error)
+		blocks = append(blocks, Block{
+			Type: "section",
+			Text: &BlockText{Type: "mrkdwn", Text: ErrorText},
+		})
+	}
 	transactionText := fmt.Sprintf("Transaction: `%s`", alertData.TxHash)
 	blocks = append(blocks, Block{
 		Type: "section",
@@ -48,6 +55,7 @@ func SendSlackWebhook(webhookURL string, alertData AlertData) error {
 		Type: "section",
 		Text: &BlockText{Type: "mrkdwn", Text: heightText},
 	})
+
 	// Divider Block
 
 	for _, detail := range alertData.MessageDetails {

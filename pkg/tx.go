@@ -136,6 +136,7 @@ type TxResponse struct {
 	Code      int64  `json:"code"`
 	Data      string `json:"data"`
 	Logs      []Log  `json:"logs"`
+	ErrorLog  string `json:"raw_log"`
 	Info      string `json:"info"`
 	GasWanted string `json:"gas_wanted"`
 	GasUsed   string `json:"gas_used"`
@@ -233,6 +234,7 @@ type AlertData struct {
 	MessageDetails []MessageDetail
 	Fees           string
 	Memo           string
+	Error          string
 }
 type MessageDetail struct {
 	Index   int
@@ -251,7 +253,10 @@ func transformData(apiData *Response, alerts *AlertData) {
 		log.Println("apiData is nil")
 		return
 	}
+	if apiData.TxResponse.Code != 0 {
+		alerts.Error = apiData.TxResponse.ErrorLog
 
+	}
 	alerts.Timestamp = apiData.TxResponse.Timestamp
 	alerts.Height = apiData.TxResponse.Height
 	alerts.TxHash = apiData.TxResponse.Txhash
@@ -419,15 +424,25 @@ func transformData(apiData *Response, alerts *AlertData) {
 			appendIfNotNil(&messageDetail.Details, "Validator Address", message.ValidatorAddress)
 			appendIfNotNil(&messageDetail.Details, "From Address", message.FromAddress)
 			appendIfNotNil(&messageDetail.Details, "To Address", message.ToAddress)
-
-			// Handle Amount as a special case because it's an interface{}
-			if message.Amount != nil {
-				switch amount := message.Amount.(type) {
-				case Amount:
-					extractedAmount, denom := extractNumber(amount.Amount)/1000000, extractDenom(amount.Denom)
-					messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", extractedAmount, denom)})
+			if message.Sender != nil && message.Receiver != nil && message.Token != nil {
+				var amount float64
+				amount, err := strconv.ParseFloat(message.Token.Amount, 64)
+				if err == nil {
+					amount = amount / 1000000
 				}
+
+				amountString := fmt.Sprintf("%f %s", amount, message.Token.Denom)
+				appendIfNotNil(&messageDetail.Details, "Amount", &amountString)
 			}
+
+			// // Handle Amount as a special case because it's an interface{}
+			// if message.Amount == nil {
+			// 	switch amount := message.Amount.(type) {
+			// 	case Amount:
+			// 		extractedAmount, denom := extractNumber(amount.Amount)/1000000, extractDenom(amount.Denom)
+			// 		messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", extractedAmount, denom)})
+			// 	}
+			// }
 
 			appendIfNotNil(&messageDetail.Details, "Proposal Id", message.ProposalId)
 			appendIfNotNil(&messageDetail.Details, "Voter", message.Voter)

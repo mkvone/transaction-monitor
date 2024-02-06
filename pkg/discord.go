@@ -51,13 +51,24 @@ func SendDiscordWebhook(webhookURL string, alertData AlertData) error {
 		}
 
 	}
+	color := 65280 // Green
+	memoText := "Memo:"
+	if alertData.Memo != "" {
+		memoText = fmt.Sprintf("Memo : `%s`", alertData.Memo)
+	}
 
+	description := fmt.Sprintf("[Txs Hash](%s) : *`%s`*\nHeight : `%s`\nFees : `%s`\n%s\n", url, alertData.TxHash, alertData.Height, alertData.Fees, memoText)
+
+	if alertData.Error != "" {
+		color = 16711680 // Red
+		description += fmt.Sprintf("Error : `%s`\n", alertData.Error)
+	}
 	embed := Embed{
 		Title:       fmt.Sprintf("%s New Transaction (<t:%d>)", alertData.ChainName, convertToUnixTimestamp(alertData.Timestamp)),
-		Description: fmt.Sprintf("[Txs Hash](%s) : *`%s`*\nHeight : `%s`\nFees : `%s`\n Memo : `%s`", url, alertData.TxHash, alertData.Height, alertData.Fees, alertData.Memo),
+		Description: description,
 
 		Fields: fields,
-		Color:  15258703, // Sample color code
+		Color:  color,
 	}
 
 	webhook := DiscordWebhook{
