@@ -29,7 +29,7 @@ func AlertRun(cfg *Config, chainName string, txhash string) {
 	apiData, err := fetchAPIData(url)
 	if err != nil {
 		log.Printf("Error fetching API data: %v", err)
-		AlertRun(cfg, chainName, txhash)
+		go AlertRun(cfg, chainName, txhash)
 		return
 	}
 	var alerts AlertData

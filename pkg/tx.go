@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -276,143 +277,143 @@ func transformData(apiData *Response, alerts *AlertData) {
 		messageDetail.Details = make([]map[string]string, 0)
 
 		switch message.Type {
-		// case "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward":
-		// 	if message.DelegatorAddress != nil {
-		// 		amount, denom := extractAmount(apiData.TxResponse.Logs, i)
-		// 		messageDetail.Action = "Get Reward"
-		// 		appendIfNotNil(&messageDetail.Details, "Delegator Address", message.DelegatorAddress)
-		// 		appendIfNotNil(&messageDetail.Details, "Validator Address", &message.ValidatorAddress)
-		// 		messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", amount, denom)})
-		// 	}
+		case "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward":
+			if message.DelegatorAddress != nil {
+				amount, denom := extractAmount(apiData.TxResponse.Logs, i)
+				messageDetail.Action = "Get Reward"
+				appendIfNotNil(&messageDetail.Details, "Delegator Address", message.DelegatorAddress)
+				appendIfNotNil(&messageDetail.Details, "Validator Address", message.ValidatorAddress)
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", amount, denom)})
+			}
 
-		// case "/cosmos.distribution.v1beta1.MsgWithdrawValidatorCommission":
-		// 	amount, denom := extractAmount(apiData.TxResponse.Logs, i)
-		// 	messageDetail.Action = "Get Commission"
-		// 	appendIfNotNil(&messageDetail.Details, "Validator Address", &message.ValidatorAddress)
-		// 	messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", amount, denom)})
+		case "/cosmos.distribution.v1beta1.MsgWithdrawValidatorCommission":
+			amount, denom := extractAmount(apiData.TxResponse.Logs, i)
+			messageDetail.Action = "Get Commission"
+			appendIfNotNil(&messageDetail.Details, "Validator Address", message.ValidatorAddress)
+			messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", amount, denom)})
 
-		// case "/cosmos.staking.v1beta1.MsgDelegate":
-		// 	if delegatorAddr := message.DelegatorAddress; delegatorAddr != nil {
-		// 		switch amount := message.Amount.(type) {
-		// 		case Amount:
-		// 			extractedAmount, denom := extractNumber(amount.Amount)/1000000, extractDenom(amount.Denom)
-		// 			messageDetail.Action = "Delegate"
-		// 			appendIfNotNil(&messageDetail.Details, "Delegator Address", delegatorAddr)
-		// 			appendIfNotNil(&messageDetail.Details, "Validator Address", &message.ValidatorAddress)
-		// 			messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", extractedAmount, denom)})
-		// 		}
-		// 	}
+		case "/cosmos.staking.v1beta1.MsgDelegate":
+			if delegatorAddr := message.DelegatorAddress; delegatorAddr != nil {
+				switch amount := message.Amount.(type) {
+				case Amount:
+					extractedAmount, denom := extractNumber(amount.Amount)/1000000, extractDenom(amount.Denom)
+					messageDetail.Action = "Delegate"
+					appendIfNotNil(&messageDetail.Details, "Delegator Address", delegatorAddr)
+					appendIfNotNil(&messageDetail.Details, "Validator Address", message.ValidatorAddress)
+					messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", extractedAmount, denom)})
+				}
+			}
 
-		// case "/ibc.applications.transfer.v1.MsgTransfer":
-		// 	if message.Sender != nil && message.Receiver != nil && message.Token != nil {
-		// 		var amount float64
-		// 		amount, err := strconv.ParseFloat(message.Token.Amount, 64)
-		// 		if err == nil {
-		// 			amount = amount / 1000000
-		// 		}
-		// 		messageDetail.Action = "IBC Transfer"
-		// 		messageDetail.Details = append(messageDetail.Details, map[string]string{"Sender": *message.Sender})
-		// 		messageDetail.Details = append(messageDetail.Details, map[string]string{"Receiver": *message.Receiver})
-		// 		messageDetail.Details = append(messageDetail.Details, map[string]string{"Source Channel": *message.SourceChannel})
-		// 		messageDetail.Details = append(messageDetail.Details, map[string]string{"Port": *message.SourcePort})
-		// 		messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", amount, message.Token.Denom)})
-		// 	}
+		case "/ibc.applications.transfer.v1.MsgTransfer":
+			if message.Sender != nil && message.Receiver != nil && message.Token != nil {
+				var amount float64
+				amount, err := strconv.ParseFloat(message.Token.Amount, 64)
+				if err == nil {
+					amount = amount / 1000000
+				}
+				messageDetail.Action = "IBC Transfer"
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Sender": *message.Sender})
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Receiver": *message.Receiver})
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Source Channel": *message.SourceChannel})
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Port": *message.SourcePort})
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", amount, message.Token.Denom)})
+			}
 
-		// case "/cosmos.gov.v1beta1.MsgVote":
-		// 	if message.ProposalId != nil && message.Voter != nil && message.Option != nil {
-		// 		messageDetail.Action = "Vote"
-		// 		appendIfNotNil(&messageDetail.Details, "Proposal Id", message.ProposalId)
-		// 		appendIfNotNil(&messageDetail.Details, "Voter", message.Voter)
-		// 		appendIfNotNil(&messageDetail.Details, "Option", message.Option)
-		// 	}
+		case "/cosmos.gov.v1beta1.MsgVote":
+			if message.ProposalId != nil && message.Voter != nil && message.Option != nil {
+				messageDetail.Action = "Vote"
+				appendIfNotNil(&messageDetail.Details, "Proposal Id", message.ProposalId)
+				appendIfNotNil(&messageDetail.Details, "Voter", message.Voter)
+				appendIfNotNil(&messageDetail.Details, "Option", message.Option)
+			}
 
-		// case "/cosmos.bank.v1beta1.MsgSend":
-		// 	if fromAddr, toAddr := message.FromAddress, message.ToAddress; fromAddr != nil && toAddr != nil {
-		// 		amountSlice, ok := message.Amount.([]Amount)
-		// 		if ok && len(amountSlice) > 0 {
-		// 			extractedAmount, denom := extractNumber(amountSlice[0].Amount)/1000000, extractDenom(amountSlice[0].Denom)
-		// 			messageDetail.Action = "Send"
-		// 			appendIfNotNil(&messageDetail.Details, "From", fromAddr)
-		// 			appendIfNotNil(&messageDetail.Details, "To", toAddr)
-		// 			messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", extractedAmount, denom)})
-		// 		}
-		// 	}
+		case "/cosmos.bank.v1beta1.MsgSend":
+			if fromAddr, toAddr := message.FromAddress, message.ToAddress; fromAddr != nil && toAddr != nil {
+				amountSlice, ok := message.Amount.([]Amount)
+				if ok && len(amountSlice) > 0 {
+					extractedAmount, denom := extractNumber(amountSlice[0].Amount)/1000000, extractDenom(amountSlice[0].Denom)
+					messageDetail.Action = "Send"
+					appendIfNotNil(&messageDetail.Details, "From", fromAddr)
+					appendIfNotNil(&messageDetail.Details, "To", toAddr)
+					messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", extractedAmount, denom)})
+				}
+			}
 
-		// case "/ibc.core.client.v1.MsgUpdateClient":
-		// 	if message.Signer != nil && message.ClientID != nil {
-		// 		messageDetail.Action = "IBC Update Client"
-		// 		appendIfNotNil(&messageDetail.Details, "Signer", message.Signer)
-		// 		appendIfNotNil(&messageDetail.Details, "Client ID", message.ClientID)
-		// 	}
-		// case "/ibc.core.channel.v1.MsgRecvPacket":
-		// 	if packet := message.Packet; packet != nil {
-		// 		var packetData map[string]interface{}
-		// 		decodedData, err := base64.StdEncoding.DecodeString(*packet.Data)
-		// 		if err != nil {
-		// 			log.Printf("Error decoding packet data: %v", err)
-		// 			continue
-		// 		}
-		// 		if err := json.Unmarshal(decodedData, &packetData); err != nil {
-		// 			log.Printf("Error unmarshalling packet data: %v", err)
-		// 			continue
-		// 		}
+		case "/ibc.core.client.v1.MsgUpdateClient":
+			if message.Signer != nil && message.ClientID != nil {
+				messageDetail.Action = "IBC Update Client"
+				appendIfNotNil(&messageDetail.Details, "Signer", message.Signer)
+				appendIfNotNil(&messageDetail.Details, "Client ID", message.ClientID)
+			}
+		case "/ibc.core.channel.v1.MsgRecvPacket":
+			if packet := message.Packet; packet != nil {
+				var packetData map[string]interface{}
+				decodedData, err := base64.StdEncoding.DecodeString(*packet.Data)
+				if err != nil {
+					log.Printf("Error decoding packet data: %v", err)
+					continue
+				}
+				if err := json.Unmarshal(decodedData, &packetData); err != nil {
+					log.Printf("Error unmarshalling packet data: %v", err)
+					continue
+				}
 
-		// 		// Add relevant details to the message detail
-		// 		messageDetail.Action = "IBC Received"
+				// Add relevant details to the message detail
+				messageDetail.Action = "IBC Received"
 
-		// 		appendIfNotNil(&messageDetail.Details, "Sequence", packet.PacketSequence)
-		// 		messageDetail.Details = append(messageDetail.Details, map[string]string{"Source Port": *packet.SourcePort})
-		// 		appendIfNotNil(&messageDetail.Details, "Source Port", packet.SourcePort)
-		// 		appendIfNotNil(&messageDetail.Details, "Destination Port", packet.DestinationPort)
-		// 		appendIfNotNil(&messageDetail.Details, "Destination Channel", packet.DestinationChannel)
+				appendIfNotNil(&messageDetail.Details, "Sequence", packet.PacketSequence)
+				messageDetail.Details = append(messageDetail.Details, map[string]string{"Source Port": *packet.SourcePort})
+				appendIfNotNil(&messageDetail.Details, "Source Port", packet.SourcePort)
+				appendIfNotNil(&messageDetail.Details, "Destination Port", packet.DestinationPort)
+				appendIfNotNil(&messageDetail.Details, "Destination Channel", packet.DestinationChannel)
 
-		// 		// Adding packetData fields
-		// 		for key, value := range packetData {
-		// 			// detailMap[key] = fmt.Sprintf("%v", value)
-		// 			if key == "memo" {
-		// 				continue
-		// 			}
-		// 			messageDetail.Details = append(messageDetail.Details, map[string]string{fmt.Sprintf("%s", key): fmt.Sprintf("%v", value)})
-		// 		}
-		// 	}
+				// Adding packetData fields
+				for key, value := range packetData {
+					// detailMap[key] = fmt.Sprintf("%v", value)
+					if key == "memo" {
+						continue
+					}
+					messageDetail.Details = append(messageDetail.Details, map[string]string{fmt.Sprintf("%s", key): fmt.Sprintf("%v", value)})
+				}
+			}
 
-		// case "/ibc.core.channel.v1.MsgAcknowledgement":
-		// 	messageDetail.Action = "IBC Acknowledgement"
+		case "/ibc.core.channel.v1.MsgAcknowledgement":
+			messageDetail.Action = "IBC Acknowledgement"
 
-		// 	if packet := message.Packet; packet != nil {
-		// 		// Packet data의 Base64 인코딩 해독
-		// 		decodedData, err := base64.StdEncoding.DecodeString(*packet.Data)
-		// 		if err != nil {
-		// 			log.Printf("Error decoding packet data: %v", err)
-		// 			continue
-		// 		}
+			if packet := message.Packet; packet != nil {
+				// Packet data의 Base64 인코딩 해독
+				decodedData, err := base64.StdEncoding.DecodeString(*packet.Data)
+				if err != nil {
+					log.Printf("Error decoding packet data: %v", err)
+					continue
+				}
 
-		// 		var packetData map[string]interface{}
-		// 		if err := json.Unmarshal(decodedData, &packetData); err != nil {
-		// 			log.Printf("Error unmarshalling packet data: %v", err)
-		// 			continue
-		// 		}
+				var packetData map[string]interface{}
+				if err := json.Unmarshal(decodedData, &packetData); err != nil {
+					log.Printf("Error unmarshalling packet data: %v", err)
+					continue
+				}
 
-		// 		for key, value := range packetData {
-		// 			var stringValue string
-		// 			if key == "amount" {
-		// 				stringValue = fmt.Sprintf("%v", value)
-		// 			} else {
-		// 				stringValue = fmt.Sprintf("%v", value)
-		// 			}
-		// 			messageDetail.Details = append(messageDetail.Details, map[string]string{key: stringValue})
-		// 		}
+				for key, value := range packetData {
+					var stringValue string
+					if key == "amount" {
+						stringValue = fmt.Sprintf("%v", value)
+					} else {
+						stringValue = fmt.Sprintf("%v", value)
+					}
+					messageDetail.Details = append(messageDetail.Details, map[string]string{key: stringValue})
+				}
 
-		// 		appendIfNotNil(&messageDetail.Details, "Sequence", packet.PacketSequence)
-		// 		appendIfNotNil(&messageDetail.Details, "Receiver", message.Receiver)
-		// 		appendIfNotNil(&messageDetail.Details, "Sender", message.Sender)
-		// 		appendIfNotNil(&messageDetail.Details, "Source Port", packet.SourcePort)
-		// 		appendIfNotNil(&messageDetail.Details, "Source Channel", packet.SourceChannel)
-		// 		appendIfNotNil(&messageDetail.Details, "Destination Port", packet.DestinationPort)
-		// 		appendIfNotNil(&messageDetail.Details, "Destination Channel", packet.DestinationChannel)
-		// 		appendIfNotNil(&messageDetail.Details, "Signer", message.Signer)
+				appendIfNotNil(&messageDetail.Details, "Sequence", packet.PacketSequence)
+				appendIfNotNil(&messageDetail.Details, "Receiver", message.Receiver)
+				appendIfNotNil(&messageDetail.Details, "Sender", message.Sender)
+				appendIfNotNil(&messageDetail.Details, "Source Port", packet.SourcePort)
+				appendIfNotNil(&messageDetail.Details, "Source Channel", packet.SourceChannel)
+				appendIfNotNil(&messageDetail.Details, "Destination Port", packet.DestinationPort)
+				appendIfNotNil(&messageDetail.Details, "Destination Channel", packet.DestinationChannel)
+				appendIfNotNil(&messageDetail.Details, "Signer", message.Signer)
 
-		// 	}
+			}
 
 		default:
 			// messageDetail.Action = message.Type
