@@ -131,18 +131,19 @@ type MsgVote struct {
 	Option     string `json:"option"`
 }
 type TxResponse struct {
-	Height    string `json:"height"`
-	Txhash    string `json:"txhash"`
-	Codespace string `json:"codespace"`
-	Code      int64  `json:"code"`
-	Data      string `json:"data"`
-	Logs      []Log  `json:"logs"`
-	ErrorLog  string `json:"raw_log"`
-	Info      string `json:"info"`
-	GasWanted string `json:"gas_wanted"`
-	GasUsed   string `json:"gas_used"`
-	Tx        Tx     `json:"tx"`
-	Timestamp string `json:"timestamp"`
+	Height    string  `json:"height"`
+	Txhash    string  `json:"txhash"`
+	Codespace string  `json:"codespace"`
+	Code      int64   `json:"code"`
+	Data      string  `json:"data"`
+	Logs      []Log   `json:"logs"`
+	Events    []Event `json:"events"`
+	ErrorLog  string  `json:"raw_log"`
+	Info      string  `json:"info"`
+	GasWanted string  `json:"gas_wanted"`
+	GasUsed   string  `json:"gas_used"`
+	Tx        Tx      `json:"tx"`
+	Timestamp string  `json:"timestamp"`
 }
 
 type Log struct {
@@ -248,223 +249,138 @@ func appendIfNotNil(details *[]map[string]string, key string, value *string) {
 		*details = append(*details, map[string]string{key: *value})
 	}
 }
-func transformData(apiData *Response, alerts *AlertData) {
 
+func transformData(apiData *Response, alerts *AlertData) {
 	if apiData == nil {
 		log.Println("apiData is nil")
 		return
 	}
 	if apiData.TxResponse.Code != 0 {
 		alerts.Error = apiData.TxResponse.ErrorLog
-
 	}
+
+	// Common data extraction
 	alerts.Timestamp = apiData.TxResponse.Timestamp
 	alerts.Height = apiData.TxResponse.Height
 	alerts.TxHash = apiData.TxResponse.Txhash
 	alerts.Memo = apiData.Tx.Body.Memo
-	// alerts.Fees = fmt.Sprintf("%f %s ", extractNumber(apiData.Tx.AuthInfo.Fee.Amount[0].Amount)/1000000, extractDenom(apiData.Tx.AuthInfo.Fee.Amount[0].Denom))
+
+	// Extract fees
 	if len(apiData.Tx.AuthInfo.Fee.Amount) > 0 {
 		amount := extractNumber(apiData.Tx.AuthInfo.Fee.Amount[0].Amount) / 1000000
 		denom := extractDenom(apiData.Tx.AuthInfo.Fee.Amount[0].Denom)
 		alerts.Fees = fmt.Sprintf("%f %s", amount, denom)
 	} else {
-		// Handle the case where there's no amount
 		alerts.Fees = "0"
 	}
+
+	// Message processing
 	for i, message := range apiData.Tx.Body.Messages {
-		var messageDetail MessageDetail
-		messageDetail.Index = i + 1
-		messageDetail.Details = make([]map[string]string, 0)
-
-		switch message.Type {
-		case "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward":
-			if message.DelegatorAddress != nil {
-				amount, denom := extractAmount(apiData.TxResponse.Logs, i)
-				messageDetail.Action = "Get Reward"
-				appendIfNotNil(&messageDetail.Details, "Delegator Address", message.DelegatorAddress)
-				appendIfNotNil(&messageDetail.Details, "Validator Address", message.ValidatorAddress)
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", amount, denom)})
-			}
-
-		case "/cosmos.distribution.v1beta1.MsgWithdrawValidatorCommission":
-			amount, denom := extractAmount(apiData.TxResponse.Logs, i)
-			messageDetail.Action = "Get Commission"
-			appendIfNotNil(&messageDetail.Details, "Validator Address", message.ValidatorAddress)
-			messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", amount, denom)})
-
-		case "/cosmos.staking.v1beta1.MsgDelegate":
-			if delegatorAddr := message.DelegatorAddress; delegatorAddr != nil {
-				switch amount := message.Amount.(type) {
-				case Amount:
-					extractedAmount, denom := extractNumber(amount.Amount)/1000000, extractDenom(amount.Denom)
-					messageDetail.Action = "Delegate"
-					appendIfNotNil(&messageDetail.Details, "Delegator Address", delegatorAddr)
-					appendIfNotNil(&messageDetail.Details, "Validator Address", message.ValidatorAddress)
-					messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", extractedAmount, denom)})
-				}
-			}
-
-		case "/ibc.applications.transfer.v1.MsgTransfer":
-			if message.Sender != nil && message.Receiver != nil && message.Token != nil {
-				var amount float64
-				amount, err := strconv.ParseFloat(message.Token.Amount, 64)
-				if err == nil {
-					amount = amount / 1000000
-				}
-				messageDetail.Action = "IBC Transfer"
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Sender": *message.Sender})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Receiver": *message.Receiver})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Source Channel": *message.SourceChannel})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Port": *message.SourcePort})
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", amount, message.Token.Denom)})
-			}
-
-		case "/cosmos.gov.v1beta1.MsgVote":
-			if message.ProposalId != nil && message.Voter != nil && message.Option != nil {
-				messageDetail.Action = "Vote"
-				appendIfNotNil(&messageDetail.Details, "Proposal Id", message.ProposalId)
-				appendIfNotNil(&messageDetail.Details, "Voter", message.Voter)
-				appendIfNotNil(&messageDetail.Details, "Option", message.Option)
-			}
-
-		case "/cosmos.bank.v1beta1.MsgSend":
-			if fromAddr, toAddr := message.FromAddress, message.ToAddress; fromAddr != nil && toAddr != nil {
-				amountSlice, ok := message.Amount.([]Amount)
-				if ok && len(amountSlice) > 0 {
-					extractedAmount, denom := extractNumber(amountSlice[0].Amount)/1000000, extractDenom(amountSlice[0].Denom)
-					messageDetail.Action = "Send"
-					appendIfNotNil(&messageDetail.Details, "From", fromAddr)
-					appendIfNotNil(&messageDetail.Details, "To", toAddr)
-					messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", extractedAmount, denom)})
-				}
-			}
-
-		case "/ibc.core.client.v1.MsgUpdateClient":
-			if message.Signer != nil && message.ClientID != nil {
-				messageDetail.Action = "IBC Update Client"
-				appendIfNotNil(&messageDetail.Details, "Signer", message.Signer)
-				appendIfNotNil(&messageDetail.Details, "Client ID", message.ClientID)
-			}
-		case "/ibc.core.channel.v1.MsgRecvPacket":
-			if packet := message.Packet; packet != nil {
-				var packetData map[string]interface{}
-				decodedData, err := base64.StdEncoding.DecodeString(*packet.Data)
-				if err != nil {
-					log.Printf("Error decoding packet data: %v", err)
-					continue
-				}
-				if err := json.Unmarshal(decodedData, &packetData); err != nil {
-					log.Printf("Error unmarshalling packet data: %v", err)
-					continue
-				}
-
-				// Add relevant details to the message detail
-				messageDetail.Action = "IBC Received"
-
-				appendIfNotNil(&messageDetail.Details, "Sequence", packet.PacketSequence)
-				messageDetail.Details = append(messageDetail.Details, map[string]string{"Source Port": *packet.SourcePort})
-				appendIfNotNil(&messageDetail.Details, "Source Port", packet.SourcePort)
-				appendIfNotNil(&messageDetail.Details, "Destination Port", packet.DestinationPort)
-				appendIfNotNil(&messageDetail.Details, "Destination Channel", packet.DestinationChannel)
-
-				// Adding packetData fields
-				for key, value := range packetData {
-					// detailMap[key] = fmt.Sprintf("%v", value)
-					if key == "memo" {
-						continue
-					}
-					messageDetail.Details = append(messageDetail.Details, map[string]string{fmt.Sprintf("%s", key): fmt.Sprintf("%v", value)})
-				}
-			}
-
-		case "/ibc.core.channel.v1.MsgAcknowledgement":
-			messageDetail.Action = "IBC Acknowledgement"
-
-			if packet := message.Packet; packet != nil {
-				// Packet data의 Base64 인코딩 해독
-				decodedData, err := base64.StdEncoding.DecodeString(*packet.Data)
-				if err != nil {
-					log.Printf("Error decoding packet data: %v", err)
-					continue
-				}
-
-				var packetData map[string]interface{}
-				if err := json.Unmarshal(decodedData, &packetData); err != nil {
-					log.Printf("Error unmarshalling packet data: %v", err)
-					continue
-				}
-
-				for key, value := range packetData {
-					var stringValue string
-					if key == "amount" {
-						stringValue = fmt.Sprintf("%v", value)
-					} else {
-						stringValue = fmt.Sprintf("%v", value)
-					}
-					messageDetail.Details = append(messageDetail.Details, map[string]string{key: stringValue})
-				}
-
-				appendIfNotNil(&messageDetail.Details, "Sequence", packet.PacketSequence)
-				appendIfNotNil(&messageDetail.Details, "Receiver", message.Receiver)
-				appendIfNotNil(&messageDetail.Details, "Sender", message.Sender)
-				appendIfNotNil(&messageDetail.Details, "Source Port", packet.SourcePort)
-				appendIfNotNil(&messageDetail.Details, "Source Channel", packet.SourceChannel)
-				appendIfNotNil(&messageDetail.Details, "Destination Port", packet.DestinationPort)
-				appendIfNotNil(&messageDetail.Details, "Destination Channel", packet.DestinationChannel)
-				appendIfNotNil(&messageDetail.Details, "Signer", message.Signer)
-
-			}
-
-		default:
-			// messageDetail.Action = message.Type
-			// messageDetail.Details = append(messageDetail.Details, map[string]string{"Unhandled Message": "\n"})
-			messageDetail.Action = message.Type
-
-			// Dynamically append message details if they are not nil
-			appendIfNotNil(&messageDetail.Details, "Delegator Address", message.DelegatorAddress)
-			appendIfNotNil(&messageDetail.Details, "Validator Address", message.ValidatorAddress)
-			appendIfNotNil(&messageDetail.Details, "From Address", message.FromAddress)
-			appendIfNotNil(&messageDetail.Details, "To Address", message.ToAddress)
-			if message.Sender != nil && message.Receiver != nil && message.Token != nil {
-				var amount float64
-				amount, err := strconv.ParseFloat(message.Token.Amount, 64)
-				if err == nil {
-					amount = amount / 1000000
-				}
-
-				amountString := fmt.Sprintf("%f %s", amount, message.Token.Denom)
-				appendIfNotNil(&messageDetail.Details, "Amount", &amountString)
-			}
-
-			// // Handle Amount as a special case because it's an interface{}
-			// if message.Amount == nil {
-			// 	switch amount := message.Amount.(type) {
-			// 	case Amount:
-			// 		extractedAmount, denom := extractNumber(amount.Amount)/1000000, extractDenom(amount.Denom)
-			// 		messageDetail.Details = append(messageDetail.Details, map[string]string{"Amount": fmt.Sprintf("%f %s", extractedAmount, denom)})
-			// 	}
-			// }
-
-			appendIfNotNil(&messageDetail.Details, "Proposal Id", message.ProposalId)
-			appendIfNotNil(&messageDetail.Details, "Voter", message.Voter)
-			appendIfNotNil(&messageDetail.Details, "Option", message.Option)
-			appendIfNotNil(&messageDetail.Details, "Source Port", message.SourcePort)
-			appendIfNotNil(&messageDetail.Details, "Source Channel", message.SourceChannel)
-			appendIfNotNil(&messageDetail.Details, "Sender", message.Sender)
-			appendIfNotNil(&messageDetail.Details, "Receiver", message.Receiver)
-			appendIfNotNil(&messageDetail.Details, "Client ID", message.ClientID)
-			appendIfNotNil(&messageDetail.Details, "Signer", message.Signer)
-			appendIfNotNil(&messageDetail.Details, "Sequence", message.PacketSequence)
-			appendIfNotNil(&messageDetail.Details, "Destination Port", message.DestinationPort)
-			appendIfNotNil(&messageDetail.Details, "Destination Channel", message.DestinationChannel)
-
-		}
-		if len(messageDetail.Details) > 0 {
-			alerts.MessageDetails = append(alerts.MessageDetails, messageDetail)
+		// var messageDetail MessageDetail
+		// messageDetail.Index = i + 1
+		messageDetail := MessageDetail{
+			Index:   i + 1,
+			Details: make([]map[string]string, 0),
 		}
 
+		// Depending on whether logs or events are available, choose the appropriate function
+		var amount float64
+		var denom string
+		eventType := getEventType(message.Type)
+
+		if len(apiData.TxResponse.Logs) > 0 {
+			amount, denom = extractAmountFromLogs(apiData.TxResponse.Logs, i, eventType)
+		} else {
+			amount, denom = extractAmountFromEvents(apiData.TxResponse.Events, eventType)
+		}
+
+		// Populate message details based on the type
+		messageDetail.Action = getMessageAction(message.Type)
+		populateMessageDetails(&messageDetail, message, amount, denom)
+		alerts.MessageDetails = append(alerts.MessageDetails, messageDetail)
+	}
+}
+
+func getEventType(messageType string) string {
+	switch messageType {
+	case "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward":
+		return "withdraw_rewards"
+	case "/cosmos.distribution.v1beta1.MsgWithdrawValidatorCommission":
+		return "withdraw_commission"
+	case "/cosmos.staking.v1beta1.MsgDelegate":
+		return "delegate"
+	default:
+		return ""
+	}
+}
+
+func getMessageAction(messageType string) string {
+	switch messageType {
+	case "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward":
+		return "Get Reward"
+	case "/cosmos.distribution.v1beta1.MsgWithdrawValidatorCommission":
+		return "Get Commission"
+	case "/cosmos.staking.v1beta1.MsgDelegate":
+		return "Delegate"
+	case "/ibc.applications.transfer.v1.MsgTransfer":
+		return "IBC Transfer"
+	case "/cosmos.gov.v1beta1.MsgVote":
+		return "Vote"
+	case "/cosmos.bank.v1beta1.MsgSend":
+		return "Send"
+	case "/ibc.core.client.v1.MsgUpdateClient":
+		return "IBC Update Client"
+	case "/ibc.core.channel.v1.MsgRecvPacket":
+		return "IBC Received"
+	case "/ibc.core.channel.v1.MsgAcknowledgement":
+		return "IBC Acknowledgement"
+	default:
+		return messageType
+	}
+}
+
+func populateMessageDetails(details *MessageDetail, message Message, amount float64, denom string) {
+	appendIfNotNil(&details.Details, "Delegator Address", message.DelegatorAddress)
+	appendIfNotNil(&details.Details, "Validator Address", message.ValidatorAddress)
+	appendIfNotNil(&details.Details, "From Address", message.FromAddress)
+	appendIfNotNil(&details.Details, "To Address", message.ToAddress)
+	appendIfNotNil(&details.Details, "Sender", message.Sender)
+	appendIfNotNil(&details.Details, "Receiver", message.Receiver)
+	appendIfNotNil(&details.Details, "Source Channel", message.SourceChannel)
+	appendIfNotNil(&details.Details, "Port", message.SourcePort)
+	appendIfNotNil(&details.Details, "Proposal Id", message.ProposalId)
+	appendIfNotNil(&details.Details, "Voter", message.Voter)
+	appendIfNotNil(&details.Details, "Option", message.Option)
+	appendIfNotNil(&details.Details, "Signer", message.Signer)
+	appendIfNotNil(&details.Details, "Client ID", message.ClientID)
+	appendIfNotNil(&details.Details, "Source Port", message.SourcePort)
+	appendIfNotNil(&details.Details, "Timeout Timestamp", message.TimeoutTimestamp)
+	appendIfNotNil(&details.Details, "Sequence", message.PacketSequence)
+	appendIfNotNil(&details.Details, "Destination Port", message.DestinationPort)
+	if amount != 0 {
+		Amount := fmt.Sprintf("%f %s", amount, denom)
+		appendIfNotNil(&details.Details, "Amount", &Amount)
 	}
 
+	if packet := message.Packet; packet != nil {
+		appendIfNotNil(&details.Details, "Sequence", packet.PacketSequence)
+		appendIfNotNil(&details.Details, "Source Port", packet.SourcePort)
+		appendIfNotNil(&details.Details, "Source Channel", packet.SourceChannel)
+		appendIfNotNil(&details.Details, "Destination Port", packet.DestinationPort)
+		appendIfNotNil(&details.Details, "Destination Channel", packet.DestinationChannel)
+		// Decode any packet data if available
+		if packet.Data != nil {
+			var packetData map[string]interface{}
+			decodedData, err := base64.StdEncoding.DecodeString(*packet.Data)
+			if err == nil {
+				json.Unmarshal(decodedData, &packetData)
+				for key, value := range packetData {
+					valueStr := fmt.Sprintf("%v", value) // Convert interface{} to string
+					appendIfNotNil(&details.Details, key, &valueStr)
+				}
+			}
+		}
+	}
 }
 
 func extractNumber(str string) float64 {
@@ -503,7 +419,26 @@ func extractDenom(str string) string {
 
 	return denom
 }
-func extractAmount(logs []Log, msgIndex int) (float64, string) {
+func extractAmountFromEvents(events []Event, eventType string) (float64, string) {
+	if len(events) == 0 {
+		log.Println("No events found")
+		return 0, ""
+	}
+
+	for _, event := range events {
+		if event.Type == eventType {
+			for _, attr := range event.Attributes {
+				if attr.Key == "amount" {
+					amount := extractNumber(attr.Value) / 1000000
+					denom := extractDenom(attr.Value)
+					return amount, denom
+				}
+			}
+		}
+	}
+	return 0, ""
+}
+func extractAmountFromLogs(logs []Log, msgIndex int, eventType string) (float64, string) {
 	if len(logs) == 0 {
 		log.Println("No logs found")
 		return 0, ""
@@ -512,10 +447,9 @@ func extractAmount(logs []Log, msgIndex int) (float64, string) {
 	for _, log := range logs {
 		if log.MsgIndex == int64(msgIndex) {
 			for _, event := range log.Events {
-				if event.Type == "withdraw_commission" || event.Type == "withdraw_rewards" {
+				if event.Type == eventType {
 					for _, attr := range event.Attributes {
 						if attr.Key == "amount" {
-							// "354817ungm" 같은 형식의 문자열에서 숫자 부분만 추출
 							amount := extractNumber(attr.Value) / 1000000
 							denom := extractDenom(attr.Value)
 							return amount, denom
