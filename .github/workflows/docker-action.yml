@@ -27,4 +27,4 @@ jobs:
               continue-on-error: true
 
             - name: Run Docker container
-              run: sudo docker run -d -v /home/ubuntu/.mkvBackend/tx_config.yml:/root/config.yml --name tx_monitor_docker_container tx_monitor_docker_image
+              run: sudo docker run -d -v /home/ubuntu/.mkvBackend/tx_config.yml:/root/config.yml --restart unless-stopped --name tx_monitor_docker_container tx_monitor_docker_image
